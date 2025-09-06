@@ -383,7 +383,7 @@ export default function AdminTimelineCalendar() {
                           <span className="absolute -top-2 left-1 bg-white/70 px-1">{String(hours.start + h).padStart(2, '0')}:00</span>
                         </div>
                       ))}
-                    </div>
+                    </div>    
 
                     {/* droppable area */}
                     <DroppableLane laneId={laneKey}>
