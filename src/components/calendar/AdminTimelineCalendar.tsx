@@ -1,8 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Clock, Users, MapPin, BadgeCheck } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Users, MapPin, BadgeCheck, Plus } from "lucide-react";
 import { DndContext, type DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
+import CreateBookingPanel from "./CreateBookingPanel";
+import Button from "../ui/Button";
 
 /**
  * Admin Timeline Calendar – Week View
@@ -140,6 +142,46 @@ const demoBookings: Booking[] = [
     end: setTimeUTC(addDays(weekStartUTC, 3), 5 + 7, 0).toISOString(),
     status: "EDITING",
   },
+  {
+    id: "bkg-004",
+    title: "Wedding – Full Day",
+    clientName: "Pasangan Sari",
+    location: "Gedung Pernikahan",
+    staffId: "stf-rina",
+    start: setTimeUTC(addDays(weekStartUTC, 1), 0 + 7, 0).toISOString(), // Tue 07:00 WIB
+    end: setTimeUTC(addDays(weekStartUTC, 1), 8 + 7, 0).toISOString(),   // Tue 15:00 WIB
+    status: "IN_PROGRESS",
+  },
+  {
+    id: "bkg-005",
+    title: "Corporate Event",
+    clientName: "PT Maju Jaya",
+    location: "Hotel Grand",
+    staffId: "stf-adi",
+    start: setTimeUTC(addDays(weekStartUTC, 4), 3 + 7, 0).toISOString(), // Thu 10:00 WIB
+    end: setTimeUTC(addDays(weekStartUTC, 4), 6 + 7, 0).toISOString(),   // Thu 13:00 WIB
+    status: "HOLD",
+  },
+  {
+    id: "bkg-006",
+    title: "Family Photo",
+    clientName: "Keluarga Ahmad",
+    location: "Taman Kota",
+    staffId: "stf-rina",
+    start: setTimeUTC(addDays(weekStartUTC, 5), 2 + 7, 0).toISOString(), // Fri 09:00 WIB
+    end: setTimeUTC(addDays(weekStartUTC, 5), 4 + 7, 0).toISOString(),   // Fri 11:00 WIB
+    status: "INQUIRY",
+  },
+  {
+    id: "bkg-007",
+    title: "Product Photography",
+    clientName: "Toko Online",
+    location: "Studio B",
+    staffId: "stf-andi",
+    start: setTimeUTC(addDays(weekStartUTC, 6), 1 + 7, 0).toISOString(), // Sat 08:00 WIB
+    end: setTimeUTC(addDays(weekStartUTC, 6), 3 + 7, 0).toISOString(),   // Sat 10:00 WIB
+    status: "REVIEW",
+  },
 ];
 
 // ----------------------------- DnD wrappers
@@ -214,6 +256,9 @@ export default function AdminTimelineCalendar() {
   const [weekStart, setWeekStart] = useState<Date>(startOfWeekUTC(new Date()));
   const [pxPerMin, setPxPerMin] = useState<number>(1.2); // zoom: pixel per minute
   const [staffFilter, setStaffFilter] = useState<StaffType | "ALL">("ALL");
+  const [statusFilter, setStatusFilter] = useState<BookingStatus | "ALL">("ALL");
+  const [query, setQuery] = useState<string>("");
+  const [createOpen, setCreateOpen] = useState(false);
 
   // Data state (would come from API in real app)
   const [staff, setStaff] = useState<Staff[]>(demoStaff);
@@ -237,10 +282,60 @@ export default function AdminTimelineCalendar() {
     [staff, staffFilter]
   );
 
+  // Filter bookings by status
+  const filteredBookings = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const base = statusFilter === "ALL" ? bookings : bookings.filter(b => b.status === statusFilter);
+    if (!q) return base;
+    return base.filter(b =>
+      b.title.toLowerCase().includes(q) ||
+      b.clientName.toLowerCase().includes(q) ||
+      (b.location || "").toLowerCase().includes(q)
+    );
+  }, [bookings, statusFilter, query]);
+
+  // Results inside current visible week
+  const weekResults = useMemo(() => {
+    return filteredBookings.filter((b) => {
+      const d = toDate(b.start);
+      const di = Math.floor((stripTime(d).getTime() - stripTime(weekStart).getTime()) / 86400000);
+      return di >= 0 && di < 7;
+    });
+  }, [filteredBookings, weekStart]);
+
+  // Results outside current week (only shown when searchAllTime)
+  // Auto-jump: bila ada query dan minggu aktif tidak punya hasil, lompat ke minggu match pertama
+  React.useEffect(() => {
+    if (!query.trim()) return;
+    if (weekResults.length > 0) return;
+    if (filteredBookings.length === 0) return;
+    const first = filteredBookings[0];
+    const target = startOfWeekUTC(toDate(first.start));
+    // Hanya ubah jika target minggu berbeda
+    if (stripTime(target).getTime() !== stripTime(weekStart).getTime()) {
+      setWeekStart(target);
+    }
+  }, [query, filteredBookings, weekResults.length]);
+
+  const dayCounts = useMemo(() => {
+    const counts = Array.from({ length: 7 }, () => 0);
+    for (const b of weekResults) {
+      const d = toDate(b.start);
+      const di = Math.floor((stripTime(d).getTime() - stripTime(weekStart).getTime()) / 86400000);
+      if (di >= 0 && di < 7) counts[di] += 1;
+    }
+    return counts;
+  }, [weekResults, weekStart]);
+
+  function goToWeekOf(dateISO: string) {
+    const d = toDate(dateISO);
+    setWeekStart(startOfWeekUTC(d));
+  }
+
   // Map bookings grouped by staffId & dayIndex
   const bookingsByLane = useMemo(() => {
     const m = new Map<string, Booking[]>();
-    for (const b of bookings) {
+    for (const b of filteredBookings) {
       const d = toDate(b.start);
       const di = Math.floor((stripTime(d).getTime() - stripTime(weekStart).getTime()) / 86400000);
       if (di < 0 || di > 6) continue; // out of visible range
@@ -249,7 +344,7 @@ export default function AdminTimelineCalendar() {
       m.get(key)!.push(b);
     }
     return m;
-  }, [bookings, weekStart]);
+  }, [filteredBookings, weekStart]);
 
   // Handle drag end → compute new staff/day and approximate time by deltaY
   function onDragEnd(e: DragEndEvent) {
@@ -313,7 +408,7 @@ export default function AdminTimelineCalendar() {
             Next <ChevronRight className="w-4 h-4" />
           </button>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="hidden sm:flex items-center gap-2 rounded-xl px-3 py-2 bg-white shadow border">
             <Clock className="w-4 h-4" />
             <span className="text-sm">Zoom</span>
@@ -326,7 +421,7 @@ export default function AdminTimelineCalendar() {
           <div className="flex items-center gap-2 rounded-xl px-3 py-2 bg-white shadow border">
             <Users className="w-4 h-4" />
             <select
-              className="text-sm outline-none"
+              className="text-sm outline-none bg-transparent"
               value={staffFilter}
               onChange={(e) => setStaffFilter(e.target.value as any)}
             >
@@ -335,24 +430,88 @@ export default function AdminTimelineCalendar() {
               <option value="EDITOR">Editors</option>
             </select>
           </div>
+          <Button className="bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" onClick={() => setCreateOpen(true)}>
+            <Plus className="w-4 h-4 mr-1" /> New Booking
+          </Button>
+          <div className="flex items-center gap-2 rounded-xl px-3 py-2 bg-white shadow border">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Cari judul / client / lokasi"
+              className="text-sm outline-none bg-transparent w-56"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-2 mb-4 text-[11px]">
-        {Object.entries(STATUS_COLOR).map(([k, v]) => (
-          <span key={k} className={`px-2 py-1 rounded-md border ${v}`}>{k}</span>
-        ))}
+      {/* Status Filter Buttons */}
+      <div className="mb-4">
+        <div className="text-sm font-medium text-gray-700 mb-2">Filter by Status:</div>
+        <div className="flex flex-wrap gap-2 text-[11px]">
+          <button
+            onClick={() => setStatusFilter("ALL")}
+            className={`px-3 py-2 rounded-md border font-medium transition-all ${
+              statusFilter === "ALL" 
+                ? "bg-gray-800 text-white border-gray-800 shadow-md" 
+                : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            All Status
+          </button>
+          {Object.entries(STATUS_COLOR).map(([k, v]) => (
+            <button
+              key={k}
+              onClick={() => setStatusFilter(k as BookingStatus)}
+              className={`px-3 py-2 rounded-md border font-medium transition-all cursor-pointer ${
+                statusFilter === k 
+                  ? `${v} shadow-md ring-2 ring-offset-1 ring-black/20` 
+                  : `${v} hover:opacity-80 hover:shadow-sm`
+              }`}
+            >
+              {k}
+            </button>
+          ))}
+        </div>
       </div>
 
+      <CreateBookingPanel
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        staff={staff}
+        timeBlocks={[]}
+        defaultStart={new Date()}
+        defaultEnd={new Date(Date.now() + 60*60*1000)}
+        onCreate={(dto) => {
+          setBookings((prev) => prev.concat({
+            id: `new-${Date.now()}`,
+            title: dto.title,
+            clientName: dto.clientName,
+            location: dto.location,
+            staffId: dto.staffId,
+            start: dto.start,
+            end: dto.end,
+            status: dto.status,
+          } as any));
+        }}
+      />
+
+      {/* Saat query diisi, jika tidak ada hasil di minggu aktif, kalender otomatis lompat ke minggu hasil pertama */}
+
       {/* Grid */}
-      <div className="w-full rounded-2xl overflow-hidden border bg-slate-50">
+      <div className="w-full rounded-2xl overflow-x-auto border bg-slate-50">
         {/* Day headers */}
-        <div className="grid" style={{ gridTemplateColumns: `220px repeat(7, 1fr)` }}>
-          <div className="bg-white border-b px-3 py-2 font-semibold">Staff / Waktu</div>
+        <div className="min-w-[1000px] grid" style={{ gridTemplateColumns: `220px repeat(7, 1fr)` }}>
+          <div className="bg-white border-b px-3 py-2 font-semibold sticky left-0 z-10">Staff / Waktu</div>
           {daysUTC.map((d, i) => (
-            <div key={i} className="bg-white border-b px-3 py-2 font-semibold text-center">
-              {fmtDayLabel(d)}
+            <div key={i} className={`bg-white border-b px-3 py-2 font-semibold text-center ${dayCounts[i] > 0 && statusFilter !== "ALL" ? "bg-amber-50" : ""}`}>
+              <div className="flex items-center justify-center gap-2">
+                <span>{fmtDayLabel(d)}</span>
+                {dayCounts[i] > 0 && (
+                  <span className={`inline-flex items-center justify-center text-[10px] px-2 py-0.5 rounded-full border ${statusFilter === "ALL" ? "bg-slate-100 text-slate-700 border-slate-200" : STATUS_COLOR[statusFilter]}`}>
+                    {dayCounts[i]}
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -360,9 +519,9 @@ export default function AdminTimelineCalendar() {
         {/* Body rows per staff */}
         <DndContext onDragEnd={onDragEnd}>
           {filteredStaff.map((s) => (
-            <div key={s.id} className="grid border-t" style={{ gridTemplateColumns: `220px repeat(7, 1fr)` }}>
+            <div key={s.id} className="min-w-[1000px] grid border-t" style={{ gridTemplateColumns: `220px repeat(7, 1fr)` }}>
               {/* Lane header (staff) */}
-              <div className="bg-white border-r p-3">
+              <div className="bg-white border-r p-3 sticky left-0 z-10">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: s.color || "#e2e8f0" }}></div>
                   <div className="font-medium">{s.name}</div>

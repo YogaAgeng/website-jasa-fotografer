@@ -36,3 +36,32 @@ export type Booking = {
   contactNumber?: string; // optional
   packageName?: string; // optional
 };
+
+export type AddOn = {
+  id: string;
+  name: string;
+  price: number;
+};
+
+export type TimeBlockType = "BUSY" | "AVAILABLE";
+
+export type TimeBlock = {
+  id: string;
+  staffId: string;
+  start: string; // ISO in UTC
+  end: string;   // ISO in UTC
+  type: TimeBlockType; // BUSY means blocked/unavailable
+  note?: string;
+};
+
+export type CreateBookingDto = {
+  title: string;
+  clientName: string;
+  location?: string;
+  staffId: string;
+  start: string; // ISO UTC
+  end: string;   // ISO UTC
+  status: BookingStatus;
+  addOnIds?: string[];
+  notes?: string;
+};
