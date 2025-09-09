@@ -4,6 +4,7 @@ import Button from "../ui/Button";
 import DatePicker from "../ui/DatePicker";
 import TimePicker from "../ui/TimePicker";
 import { isAvailable } from "../../store/timeBlocks";
+import { BookingAPI } from "../../api/client";
 
 type BookingStatus =
   | "INQUIRY"
@@ -30,6 +31,7 @@ type CreateBookingDto = {
   status: BookingStatus;
   addOnIds?: string[];
   notes?: string;
+  clientPhone?: string;
 };
 
 export default function CreateBookingPanel({
@@ -64,6 +66,7 @@ export default function CreateBookingPanel({
     status: "CONFIRMED" as BookingStatus,
     addOnIds: [],
     notes: "",
+    clientPhone: "",
   });
 
   // Combine date and time for start/end
@@ -100,6 +103,8 @@ export default function CreateBookingPanel({
     }));
   }, [combinedStart, combinedEnd]);
 
+  const [submitting, setSubmitting] = useState(false);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!isOk) return;
@@ -111,8 +116,27 @@ export default function CreateBookingPanel({
       end: combinedEnd.toISOString()
     };
     
-    await onCreate(finalForm);
-    onClose();
+    try {
+      setSubmitting(true);
+      // Create booking only (tanpa assignments/time-blocks)
+      await BookingAPI.create({
+        clientName: form.clientName,
+        clientPhone: form.clientPhone,
+        packageId: '21000000-0000-0000-0000-000000000001',
+        staffId: finalForm.staffId,
+        start: finalForm.start,
+        end: finalForm.end,
+        address: finalForm.location,
+        status: finalForm.status,
+        title: finalForm.title,
+        notes: finalForm.notes,
+      } as any);
+
+      await onCreate(finalForm);
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -128,9 +152,18 @@ export default function CreateBookingPanel({
             <input className="mt-1 w-full border rounded px-3 py-2" value={form.clientName} onChange={(e) => update("clientName", e.target.value)} />
           </div>
           <div>
-            <label className="text-sm font-medium">Lokasi</label>
-            <input className="mt-1 w-full border rounded px-3 py-2" value={form.location || ""} onChange={(e) => update("location", e.target.value)} />
+            <label className="text-sm font-medium">WhatsApp</label>
+            <input 
+              className="mt-1 w-full border rounded px-3 py-2" 
+              value={form.clientPhone || ""} 
+              onChange={(e) => update("clientPhone", e.target.value)}
+              placeholder="+6281234567890"
+            />
           </div>
+        </div>
+        <div>
+          <label className="text-sm font-medium">Lokasi</label>
+          <input className="mt-1 w-full border rounded px-3 py-2" value={form.location || ""} onChange={(e) => update("location", e.target.value)} />
         </div>
         <div>
           <label className="text-sm font-medium">Staff</label>
@@ -205,7 +238,14 @@ export default function CreateBookingPanel({
         <div className="text-xs text-slate-600">{isOk ? "✅ Slot tersedia" : "❌ Tidak tersedia / overlap"}</div>
         <div className="pt-2 flex justify-end gap-2">
           <Button type="button" onClick={onClose}>Batal</Button>
-          <Button type="submit" className={`bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600 ${!isOk ? "opacity-50 pointer-events-none" : ""}`}>Buat Booking</Button>
+          <Button
+            type="submit"
+            variant="primary"
+            loading={submitting}
+            disabled={!isOk || submitting}
+          >
+            Buat Booking
+          </Button>
         </div>
       </form>
     </Drawer>

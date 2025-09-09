@@ -4,6 +4,9 @@ import React, { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Clock, Users, MapPin, BadgeCheck, Plus } from "lucide-react";
 import { DndContext, type DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
 import CreateBookingPanel from "./CreateBookingPanel";
+import EditBookingPanel from "./EditBookingPanel";
+import { BookingAPI } from "../../api/client";
+import { StaffAPI } from "../../api/client";
 import Button from "../ui/Button";
 
 /**
@@ -102,87 +105,11 @@ const STATUS_COLOR: Record<BookingStatus, string> = {
 
 // ----------------------------- Mock Data (replace with API)
 
-const demoStaff: Staff[] = [
-  { id: "stf-rina", name: "Rina", staffType: "PHOTOGRAPHER", color: "#dbeafe" },
-  { id: "stf-adi", name: "Adi", staffType: "PHOTOGRAPHER", color: "#fef9c3" },
-  { id: "stf-andi", name: "Andi", staffType: "EDITOR", color: "#e9d5ff" },
-];
+// no demo staff
 
-const nowUTC = new Date();
-const weekStartUTC = startOfWeekUTC(nowUTC);
+// demo baseline removed
 
-const demoBookings: Booking[] = [
-  {
-    id: "bkg-001",
-    title: "Portrait – Basic 2 Jam",
-    clientName: "Budi",
-    location: "Studio A",
-    staffId: "stf-rina",
-    start: setTimeUTC(weekStartUTC, 2 + 7, 0).toISOString(), // Mon 09:00 WIB == 02:00 UTC
-    end: setTimeUTC(weekStartUTC, 4 + 7, 0).toISOString(),   // Mon 11:00 WIB
-    status: "CONFIRMED",
-  },
-  {
-    id: "bkg-002",
-    title: "Event – 4 Jam",
-    clientName: "SMA 3",
-    location: "Aula Sekolah",
-    staffId: "stf-adi",
-    start: setTimeUTC(addDays(weekStartUTC, 2), 1 + 7, 30).toISOString(), // Wed 08:30 WIB
-    end: setTimeUTC(addDays(weekStartUTC, 2), 5 + 7, 30).toISOString(),   // Wed 12:30 WIB
-    status: "SCHEDULED",
-  },
-  {
-    id: "bkg-003",
-    title: "Editing – 60 foto",
-    clientName: "Keluarga Dony",
-    location: "—",
-    staffId: "stf-andi",
-    start: setTimeUTC(addDays(weekStartUTC, 3), 2 + 7, 0).toISOString(),
-    end: setTimeUTC(addDays(weekStartUTC, 3), 5 + 7, 0).toISOString(),
-    status: "EDITING",
-  },
-  {
-    id: "bkg-004",
-    title: "Wedding – Full Day",
-    clientName: "Pasangan Sari",
-    location: "Gedung Pernikahan",
-    staffId: "stf-rina",
-    start: setTimeUTC(addDays(weekStartUTC, 1), 0 + 7, 0).toISOString(), // Tue 07:00 WIB
-    end: setTimeUTC(addDays(weekStartUTC, 1), 8 + 7, 0).toISOString(),   // Tue 15:00 WIB
-    status: "IN_PROGRESS",
-  },
-  {
-    id: "bkg-005",
-    title: "Corporate Event",
-    clientName: "PT Maju Jaya",
-    location: "Hotel Grand",
-    staffId: "stf-adi",
-    start: setTimeUTC(addDays(weekStartUTC, 4), 3 + 7, 0).toISOString(), // Thu 10:00 WIB
-    end: setTimeUTC(addDays(weekStartUTC, 4), 6 + 7, 0).toISOString(),   // Thu 13:00 WIB
-    status: "HOLD",
-  },
-  {
-    id: "bkg-006",
-    title: "Family Photo",
-    clientName: "Keluarga Ahmad",
-    location: "Taman Kota",
-    staffId: "stf-rina",
-    start: setTimeUTC(addDays(weekStartUTC, 5), 2 + 7, 0).toISOString(), // Fri 09:00 WIB
-    end: setTimeUTC(addDays(weekStartUTC, 5), 4 + 7, 0).toISOString(),   // Fri 11:00 WIB
-    status: "INQUIRY",
-  },
-  {
-    id: "bkg-007",
-    title: "Product Photography",
-    clientName: "Toko Online",
-    location: "Studio B",
-    staffId: "stf-andi",
-    start: setTimeUTC(addDays(weekStartUTC, 6), 1 + 7, 0).toISOString(), // Sat 08:00 WIB
-    end: setTimeUTC(addDays(weekStartUTC, 6), 3 + 7, 0).toISOString(),   // Sat 10:00 WIB
-    status: "REVIEW",
-  },
-];
+// demo data removed; all bookings are loaded from API
 
 // ----------------------------- DnD wrappers
 
@@ -190,10 +117,14 @@ function DraggableBooking({
   booking,
   pxPerMin,
   dayStartUTC,
+  onChangeStatus,
+  positioning,
 }: {
   booking: Booking;
   pxPerMin: number;
   dayStartUTC: Date;
+  onChangeStatus?: (id: string, status: BookingStatus) => void;
+  positioning?: { width: number; left: number; zIndex: number };
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: booking.id,
@@ -209,6 +140,9 @@ function DraggableBooking({
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
     top,
     height,
+    width: positioning ? `${positioning.width}%` : '95%',
+    left: positioning ? `${positioning.left}%` : '2.5%',
+    zIndex: isDragging ? 1000 : (positioning?.zIndex || 10),
   };
 
   const color = STATUS_COLOR[booking.status];
@@ -218,7 +152,7 @@ function DraggableBooking({
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      className={`absolute w-[95%] left-[2.5%] rounded-xl shadow-sm border border-black/5 p-2 text-[11px] ${color} ${isDragging ? "opacity-80 ring-2 ring-black/10" : ""}`}
+      className={`absolute rounded-xl shadow-sm border border-black/5 p-2 text-[11px] ${color} ${isDragging ? "opacity-80 ring-2 ring-black/10" : ""}`}
       style={style}
     >
       <div className="flex items-center justify-between gap-2">
@@ -226,6 +160,18 @@ function DraggableBooking({
         <span className="shrink-0 text-[10px] font-medium">
           {formatHM(start)}–{formatHM(end)}
         </span>
+      </div>
+      <div className="mt-1">
+        <select
+          className="text-[10px] px-1 py-0.5 rounded border bg-white/80"
+          value={booking.status}
+          onChange={(e) => onChangeStatus?.(booking.id, e.target.value as BookingStatus)}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {Object.keys(STATUS_COLOR).map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
       </div>
       <div className="flex items-center gap-2 mt-1 opacity-80">
         <Users className="w-3 h-3" />
@@ -259,16 +205,61 @@ export default function AdminTimelineCalendar() {
   const [statusFilter, setStatusFilter] = useState<BookingStatus | "ALL">("ALL");
   const [query, setQuery] = useState<string>("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [selected, setSelected] = useState<Booking | null>(null);
 
   // Data state (would come from API in real app)
-  const [staff, setStaff] = useState<Staff[]>(demoStaff);
-  const [bookings, setBookings] = useState<Booking[]>(demoBookings);
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
 
   const hours = { start: 7, end: 19 }; // 07:00–19:00 local WIB (but we draw using UTC baseline)
   const columnHeight = (hours.end - hours.start) * 60 * pxPerMin; // minutes * pxPerMin
 
   // Build days for the selected week
   const daysUTC = useMemo(() => Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i)), [weekStart]);
+
+  // Load staff from API only
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const data = await StaffAPI.list();
+        if (Array.isArray(data) && data.length) {
+          const apiStaff = data.map((s: any) => ({ id: s.id, name: s.name, staffType: s.staffType }));
+          setStaff(apiStaff);
+        }
+      } catch {}
+    })();
+  }, []);
+
+  // Load bookings from API (READ). Fallback fields jika API tidak lengkap
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const data = await BookingAPI.list();
+        if (Array.isArray(data) && data.length) {
+          setBookings(
+            data.map((b: any, idx: number) => {
+              const assignedStaffId = b.staffId && staff.find(s => s.id === b.staffId) ? b.staffId : (staff[0]?.id || "");
+              return {
+                id: b.id,
+                title: b.title || b.clientName || `Booking ${idx+1}`,
+                clientName: b.clientName || "Client",
+                location: b.location || undefined,
+                staffId: assignedStaffId,
+                start: b.start,
+                end: b.end,
+                status: (b.status || "CONFIRMED") as BookingStatus,
+              };
+            })
+          );
+        } else {
+          setBookings([]);
+        }
+      } catch {
+        setBookings([]);
+      }
+    })();
+  }, [staff]);
 
   // Lane id generator: staffId__dayIndex
   const laneId = (staffId: string, dayIndex: number) => `${staffId}__${dayIndex}`;
@@ -327,12 +318,9 @@ export default function AdminTimelineCalendar() {
     return counts;
   }, [weekResults, weekStart]);
 
-  function goToWeekOf(dateISO: string) {
-    const d = toDate(dateISO);
-    setWeekStart(startOfWeekUTC(d));
-  }
+  //
 
-  // Map bookings grouped by staffId & dayIndex
+  // Map bookings grouped by staffId & dayIndex, sorted by start time
   const bookingsByLane = useMemo(() => {
     const m = new Map<string, Booking[]>();
     for (const b of filteredBookings) {
@@ -343,8 +331,50 @@ export default function AdminTimelineCalendar() {
       if (!m.has(key)) m.set(key, []);
       m.get(key)!.push(b);
     }
+    
+    // Sort bookings within each lane by start time
+    for (const [, bookings] of m.entries()) {
+      bookings.sort((a, b) => {
+        const timeA = toDate(a.start).getTime();
+        const timeB = toDate(b.start).getTime();
+        return timeA - timeB;
+      });
+    }
+    
     return m;
   }, [filteredBookings, weekStart]);
+
+  // Function to detect overlapping events and calculate positioning
+  const getEventPositioning = (bookings: Booking[]) => {
+    const positionedEvents: Array<Booking & { width: number; left: number; zIndex: number }> = [];
+    
+    for (let i = 0; i < bookings.length; i++) {
+      const current = bookings[i];
+      const currentStart = toDate(current.start).getTime();
+      const currentEnd = toDate(current.end).getTime();
+      
+      // Find overlapping events
+      const overlapping = positionedEvents.filter(event => {
+        const eventStart = toDate(event.start).getTime();
+        const eventEnd = toDate(event.end).getTime();
+        return !(currentEnd <= eventStart || currentStart >= eventEnd);
+      });
+      
+      // Calculate width and position based on overlaps
+      const totalOverlaps = overlapping.length + 1;
+      const width = 95 / totalOverlaps; // Divide width among overlapping events
+      const left = 2.5 + (overlapping.length * width); // Position based on overlap index
+      
+      positionedEvents.push({
+        ...current,
+        width,
+        left,
+        zIndex: 10 + i
+      });
+    }
+    
+    return positionedEvents;
+  };
 
   // Handle drag end → compute new staff/day and approximate time by deltaY
   function onDragEnd(e: DragEndEvent) {
@@ -392,6 +422,16 @@ export default function AdminTimelineCalendar() {
     );
   }
 
+  async function handleChangeStatus(id: string, status: BookingStatus) {
+    try {
+      await BookingAPI.updateStatus(id, status);
+      await BookingAPI.update(id, { status });
+      setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, status } : b)));
+    } catch {
+      // ignore simple error
+    }
+  }
+
   // Navigation
   function prevWeek() { setWeekStart(addDays(weekStart, -7)); }
   function nextWeek() { setWeekStart(addDays(weekStart, 7)); }
@@ -430,9 +470,14 @@ export default function AdminTimelineCalendar() {
               <option value="EDITOR">Editors</option>
             </select>
           </div>
-          <Button className="bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" onClick={() => setCreateOpen(true)}>
-            <Plus className="w-4 h-4 mr-1" /> New Booking
+          <Button
+            variant="primary"
+            leftIcon={<Plus className="w-4 h-4" />}
+            onClick={() => setCreateOpen(true)}
+          >
+            New Booking
           </Button>
+          {/* Add Block removed */}
           <div className="flex items-center gap-2 rounded-xl px-3 py-2 bg-white shadow border">
             <input
               value={query}
@@ -495,10 +540,51 @@ export default function AdminTimelineCalendar() {
         }}
       />
 
+      {/* Time-block panel removed as requested */}
+
+      <EditBookingPanel
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        booking={selected}
+        onSave={async (u) => {
+          try {
+            const original = bookings.find((b) => b.id === u.id);
+            if (original && original.status !== u.status) {
+              await BookingAPI.updateStatus(u.id, u.status);
+            }
+            await BookingAPI.update(u.id, {
+              start: u.start,
+              end: u.end,
+              address: u.location,
+              status: u.status,
+            });
+            setBookings((prev) => prev.map((x) => x.id === u.id ? u : x));
+          } catch (e) {
+            // noop simple error handling for now
+          }
+        }}
+        onDelete={async (id) => {
+          try {
+            await BookingAPI.remove(id);
+            setBookings((prev) => prev.filter((x) => x.id !== id));
+            console.log('Booking deleted successfully');
+          } catch (error) {
+            console.error('Failed to delete booking:', error);
+            alert('Failed to delete booking. Please try again.');
+            throw error; // Re-throw to show error in EditBookingPanel
+          }
+        }}
+      />
+
       {/* Saat query diisi, jika tidak ada hasil di minggu aktif, kalender otomatis lompat ke minggu hasil pertama */}
 
       {/* Grid */}
       <div className="w-full rounded-2xl overflow-x-auto border bg-slate-50">
+        {bookings.length === 0 && (
+          <div className="p-3 bg-amber-50 text-amber-800 border-b border-amber-200 text-sm">
+            Tidak ada data booking dari API. Coba tambah booking baru atau cek koneksi server.
+          </div>
+        )}
         {/* Day headers */}
         <div className="min-w-[1000px] grid" style={{ gridTemplateColumns: `220px repeat(7, 1fr)` }}>
           <div className="bg-white border-b px-3 py-2 font-semibold sticky left-0 z-10">Staff / Waktu</div>
@@ -547,9 +633,21 @@ export default function AdminTimelineCalendar() {
                     {/* droppable area */}
                     <DroppableLane laneId={laneKey}>
                       <div style={{ height: columnHeight }} className="relative">
-                        {(bookingsByLane.get(laneKey) || []).map((b) => (
-                          <DraggableBooking key={b.id} booking={b} pxPerMin={pxPerMin} dayStartUTC={dayStart} />
-                        ))}
+                        {(() => {
+                          const laneBookings = bookingsByLane.get(laneKey) || [];
+                          const positionedEvents = getEventPositioning(laneBookings);
+                          return positionedEvents.map((event) => (
+                            <div key={event.id} onClick={() => { setSelected(event); setEditOpen(true); }}>
+                              <DraggableBooking 
+                                booking={event} 
+                                pxPerMin={pxPerMin} 
+                                dayStartUTC={dayStart} 
+                                onChangeStatus={handleChangeStatus}
+                                positioning={{ width: event.width, left: event.left, zIndex: event.zIndex }}
+                              />
+                            </div>
+                          ));
+                        })()}
                       </div>
                     </DroppableLane>
                   </div>

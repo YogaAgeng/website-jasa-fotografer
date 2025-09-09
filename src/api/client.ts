@@ -34,18 +34,60 @@ api.interceptors.response.use(
 
 export const BookingAPI = {
   async create(payload: any) {
-    // return (await api.post("/bookings", payload)).data;
-    return { id: "mock", ...payload };
+    return (await api.post("/bookings", payload)).data;
   },
   async list(params?: any) {
-    // return (await api.get("/bookings", { params })).data;
-    return [];
+    return (await api.get("/bookings", { params })).data;
+  },
+  async get(id: string) {
+    return (await api.get(`/bookings/${id}`)).data;
+  },
+  async update(id: string, payload: any) {
+    return (await api.put(`/bookings/${id}`, payload)).data;
+  },
+  async remove(id: string) {
+    return (await api.delete(`/bookings/${id}`)).data;
+  },
+  async updateStatus(id: string, toStatus: string, note?: string) {
+    return (await api.post(`/bookings/${id}/status`, { toStatus, note })).data;
   },
 };
 
 export const TimeBlocksAPI = {
   async list(params?: { staffIds?: string[]; from?: string; to?: string }) {
-    // return (await api.get("/time-blocks", { params })).data;
-    return [];
+    return (await api.get("/time-blocks", { params })).data;
   },
+  async create(payload: { staffId: string; bookingId?: string; type: 'BOOKING'|'BUFFER'|'TRAVEL'|'OFF'; start: string; end: string; }) {
+    return (await api.post("/time-blocks", payload)).data;
+  },
+  async update(id: string, payload: Partial<{ type: 'BOOKING'|'BUFFER'|'TRAVEL'|'OFF'; start: string; end: string }>) {
+    return (await api.put(`/time-blocks/${id}`, payload)).data;
+  },
+  async remove(id: string) {
+    return (await api.delete(`/time-blocks/${id}`)).data;
+  }
+};
+
+export const AssignmentsAPI = {
+  async create(payload: { bookingId: string; staffId: string; role?: 'MAIN'|'ASSISTANT'|'EDITOR'; start: string; end: string }) {
+    return (await api.post('/assignments', payload)).data;
+  }
+};
+
+export const StaffAPI = {
+  async list() {
+    return (await api.get('/staff')).data;
+  }
+};
+
+export const PaymentAPI = {
+  async list(params?: { bookingId?: string; from?: string; to?: string }) {
+    return (await api.get('/payments', { params })).data;
+  },
+  async create(payload: { bookingId: string; method: 'EWALLET'|'VA'|'CASH'|'BANK_TRANSFER'; amount: number; paidAt?: string }) {
+    return (await api.post('/payments', payload)).data;
+  },
+  async remove(id: string) {
+    return (await api.delete(`/payments/${id}`)).data;
+  }
 };

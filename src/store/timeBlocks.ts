@@ -1,11 +1,13 @@
 import { create } from "zustand";
-import { api } from "../api/client";
+import { TimeBlocksAPI } from "../api/client";
 import type { TimeBlock } from "../api/types";
 
 type S = {
   timeBlocks: TimeBlock[];
   set: (p: Partial<S>) => void;
   fetch: (staffIds?: string[], fromISO?: string, toISO?: string) => Promise<void>;
+  update: (id: string, payload: Partial<{ type: TimeBlock['type']; start: string; end: string }>) => Promise<void>;
+  remove: (id: string) => Promise<void>;
 };
 
 export const useTimeBlocks = create<S>((set) => ({
@@ -13,16 +15,22 @@ export const useTimeBlocks = create<S>((set) => ({
   set: (p) => set(p),
   fetch: async (staffIds, fromISO, toISO) => {
     try {
-      // const { data } = await api.get("/time-blocks", { params: { staffIds, from: fromISO, to: toISO } });
-      // set({ timeBlocks: data });
-      // Demo data when backend is not connected
-      const demo: TimeBlock[] = [];
-      set({ timeBlocks: demo });
-    } catch (err) {
-      // noop for demo
+      const data = await TimeBlocksAPI.list({ staffIds, from: fromISO, to: toISO });
+      set({ timeBlocks: data as TimeBlock[] });
+    } catch {
       set({ timeBlocks: [] });
     }
   },
+  update: async (id, payload) => {
+    await TimeBlocksAPI.update(id, payload as any);
+    set((s) => ({
+      timeBlocks: s.timeBlocks.map((tb) => tb.id === id ? { ...tb, ...(payload as any) } : tb)
+    }));
+  },
+  remove: async (id) => {
+    await TimeBlocksAPI.remove(id);
+    set((s) => ({ timeBlocks: s.timeBlocks.filter((tb) => tb.id !== id) }));
+  }
 }));
 
 export function isRangeOverlapping(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {

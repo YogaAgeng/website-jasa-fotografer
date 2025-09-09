@@ -34,6 +34,7 @@ export type Booking = {
   notes?: string; // optional field for additional information
   email?: string; // optional
   contactNumber?: string; // optional
+  clientPhone?: string; // WhatsApp number
   packageName?: string; // optional
 };
 

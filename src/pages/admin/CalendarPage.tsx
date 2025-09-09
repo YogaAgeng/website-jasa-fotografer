@@ -1,13 +1,5 @@
-import React from 'react'
+import AdminTimelineCalendar from '../../components/calendar/AdminTimelineCalendar';
 
-
-const AdminTimelineCalendar: React.FC = () => {
-  return (
-    <div>
-      {/* Add your calendar implementation here */}
-      <h1>Admin Timeline Calendar</h1>
-    </div>
-  )
+export default function CalendarPage() {
+  return <AdminTimelineCalendar />;
 }
-
-export default AdminTimelineCalendar
