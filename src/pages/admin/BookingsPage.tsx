@@ -152,6 +152,18 @@ export default function BookingsPage() {
     return staffMember;
   };
 
+  // Generate descriptive title based on booking details
+  const generateDescriptiveTitle = (booking: Booking) => {
+    // Jika ada title yang diinput user dan tidak kosong, gunakan title tersebut
+    if (booking.title && booking.title.trim() !== '') {
+      return booking.title;
+    }
+    
+    // Jika title kosong, gunakan nama klien sebagai fallback
+    const clientName = booking.clientName || 'Klien';
+    return `Sesi Foto ${clientName}`;
+  };
+
   const generateInvoice = (booking: Booking) => {
     const staffInfo = getStaffInfo(booking.staffId || '');
     const startDate = new Date(booking.start);
@@ -159,7 +171,7 @@ export default function BookingsPage() {
     
     const invoiceData = {
       bookingId: booking.id,
-      title: booking.title || 'Untitled',
+      title: generateDescriptiveTitle(booking),
       clientName: booking.clientName || 'Unknown Client',
       clientPhone: booking.clientPhone || 'No phone number',
       staffName: staffInfo?.name || 'No staff assigned',

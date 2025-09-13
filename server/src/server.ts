@@ -89,32 +89,160 @@ app.post('/auth/logout', (req, res) => {
   res.json({ message: 'Logged out successfully' });
 });
 
-// WhatsApp Web JS client
-const waClient = new WAClient({ authStrategy: new LocalAuth({ clientId: 'photobooking' }) });
-let waReady = false;
-let waQR: string | null = null;
+// WhatsApp Web JS client with multi-session support
+const waSessions = new Map<string, any>();
+let defaultSessionId = 'photobooking';
 
-waClient.on('qr', (qr: string) => {
-  waReady = false;
-  waQR = qr;
+// Create default session
+const createSession = (sessionId: string) => {
+  const waClient = new WAClient({ 
+    authStrategy: new LocalAuth({ clientId: sessionId }),
+    puppeteer: {
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    }
+  });
+
+  let waReady = false;
+  let waQR: string | null = null;
+
+  waClient.on('qr', (qr: string) => {
+    waReady = false;
+    waQR = qr;
+    console.log(`QR Code generated for session ${sessionId}`);
+  });
+
+  waClient.on('ready', () => {
+    waReady = true;
+    waQR = null;
+    console.log(`WhatsApp client ready for session ${sessionId}`);
+  });
+
+  waClient.on('disconnected', () => {
+    waReady = false;
+    console.log(`WhatsApp client disconnected for session ${sessionId}`);
+  });
+
+  waClient.initialize().catch((error: any) => {
+    console.error(`Failed to initialize WhatsApp client for session ${sessionId}:`, error);
+  });
+
+  return { client: waClient, ready: () => waReady, qr: () => waQR };
+};
+
+// Initialize default session
+const defaultSession = createSession(defaultSessionId);
+waSessions.set(defaultSessionId, defaultSession);
+
+// WhatsApp API endpoints following wa-api-gateway pattern
+
+// Create new session
+app.post('/api/session/create', auth(['ADMIN','MANAGER']), async (req, res) => {
+  const sessionId = req.body.sessionId || crypto.randomUUID();
+  if (waSessions.has(sessionId)) {
+    return res.status(400).json({ message: 'Session already exists' });
+  }
+  
+  const session = createSession(sessionId);
+  waSessions.set(sessionId, session);
+  res.json({ sessionId, message: 'Session created successfully' });
 });
 
-waClient.on('ready', () => {
-  waReady = true;
-  waQR = null;
-  console.log('WhatsApp client ready');
+// Get QR Code by session ID
+app.get('/api/session/qr', auth(['ADMIN','MANAGER']), async (req, res) => {
+  const { id } = req.query as { id: string };
+  const session = waSessions.get(id);
+  if (!session) {
+    return res.status(404).json({ message: 'Session not found' });
+  }
+  
+  const qr = session.qr();
+  if (!qr) {
+    return res.status(400).json({ message: 'No QR code available' });
+  }
+  
+  const dataUrl = await QRCode.toDataURL(qr);
+  res.json({ qr: dataUrl });
 });
 
-waClient.on('disconnected', () => {
-  waReady = false;
+// Get status by session ID
+app.get('/api/session/status', auth(['ADMIN','MANAGER']), async (req, res) => {
+  const { id } = req.query as { id: string };
+  const session = waSessions.get(id);
+  if (!session) {
+    return res.status(404).json({ message: 'Session not found' });
+  }
+  
+  const ready = session.ready();
+  const qr = session.qr();
+  
+  if (ready) {
+    return res.json({ ready: true });
+  }
+  
+  if (qr) {
+    const dataUrl = await QRCode.toDataURL(qr);
+    return res.json({ ready: false, qr: dataUrl });
+  }
+  
+  return res.json({ ready: false });
 });
 
-waClient.initialize().catch(() => {});
+// Get all sessions
+app.get('/api/session/list', auth(['ADMIN','MANAGER']), async (_req, res) => {
+  const sessions = Array.from(waSessions.keys()).map(id => ({
+    id,
+    ready: waSessions.get(id)?.ready() || false
+  }));
+  res.json(sessions);
+});
 
+// Send message (single or multiple)
+app.post('/api/send-message/:sessionId', auth(['ADMIN','MANAGER']), async (req, res) => {
+  const { sessionId } = req.params;
+  const { to, text } = req.body as { to: string | string[]; text: string };
+  
+  const session = waSessions.get(sessionId);
+  if (!session) {
+    return res.status(404).json({ message: 'Session not found' });
+  }
+  
+  if (!session.ready()) {
+    return res.status(400).json({ message: 'WhatsApp not connected' });
+  }
+  
+  if (!to || !text) {
+    return res.status(400).json({ message: 'to and text are required' });
+  }
+  
+  try {
+    const phoneNumbers = Array.isArray(to) ? to : [to];
+    const formattedNumbers = phoneNumbers.map(phone => 
+      phone.replace(/^\+?62/, '62') + '@c.us'
+    );
+    
+    for (const formattedPhone of formattedNumbers) {
+      await session.client.sendMessage(formattedPhone, text);
+    }
+    
+    res.json({ ok: true, message: 'Messages sent successfully' });
+  } catch (error) {
+    console.error('Failed to send message:', error);
+    res.status(500).json({ message: 'Failed to send message' });
+  }
+});
+
+// Legacy endpoints for backward compatibility
 app.get('/wa/status', auth(['ADMIN','MANAGER']), async (_req, res) => {
-  if (waReady) return res.json({ ready: true });
-  if (waQR) {
-    const dataUrl = await QRCode.toDataURL(waQR);
+  const session = waSessions.get(defaultSessionId);
+  if (!session) {
+    return res.status(500).json({ message: 'Default session not found' });
+  }
+  
+  if (session.ready()) return res.json({ ready: true });
+  const qr = session.qr();
+  if (qr) {
+    const dataUrl = await QRCode.toDataURL(qr);
     return res.json({ ready: false, qr: dataUrl });
   }
   return res.json({ ready: false });
@@ -122,11 +250,23 @@ app.get('/wa/status', auth(['ADMIN','MANAGER']), async (_req, res) => {
 
 app.post('/wa/send', auth(['ADMIN','MANAGER']), async (req, res) => {
   const { phone, message } = req.body as { phone: string; message: string };
-  if (!waReady) return res.status(400).json({ message: 'WhatsApp not connected' });
+  const session = waSessions.get(defaultSessionId);
+  
+  if (!session) {
+    return res.status(500).json({ message: 'Default session not found' });
+  }
+  
+  if (!session.ready()) return res.status(400).json({ message: 'WhatsApp not connected' });
   if (!phone || !message) return res.status(400).json({ message: 'phone and message required' });
-  const to = phone.replace(/^\+?62/, '62') + '@c.us';
-  await waClient.sendMessage(to, message);
-  res.json({ ok: true });
+  
+  try {
+    const to = phone.replace(/^\+?62/, '62') + '@c.us';
+    await session.client.sendMessage(to, message);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Failed to send message:', error);
+    res.status(500).json({ message: 'Failed to send message' });
+  }
 });
 
 app.get('/staff', auth(['ADMIN','MANAGER']), async (_req, res) => {
@@ -183,6 +323,7 @@ app.get('/bookings', auth(['ADMIN','MANAGER']), async (req, res) => {
   const { status, q, from, to } = req.query as any;
   const params: any[] = [];
   let sql = `SELECT b.id,
+                    b.title,
                     b.status,
                     b.start_at as start,
                     b.end_at as end,
@@ -201,7 +342,7 @@ app.get('/bookings', auth(['ADMIN','MANAGER']), async (req, res) => {
 });
 
 app.post('/bookings', auth(['ADMIN','MANAGER']), async (req, res) => {
-  const { clientId, clientName, clientEmail, clientPhone, packageId, staffId, start, end, address, status } = req.body as any;
+  const { clientId, clientName, clientEmail, clientPhone, packageId, staffId, start, end, address, status, title } = req.body as any;
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -235,9 +376,9 @@ app.post('/bookings', auth(['ADMIN','MANAGER']), async (req, res) => {
     const id = crypto.randomUUID();
     const eventDate = new Date(start).toISOString().slice(0,10);
     await conn.query(
-      `INSERT INTO bookings (id, client_id, package_id, staff_id, event_date, start_at, end_at, address, client_phone, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, finalClientId, packageId, staffId || null, eventDate, toMySQLDateTime(start), toMySQLDateTime(end), address || null, clientPhone || null, status || 'INQUIRY']
+      `INSERT INTO bookings (id, client_id, package_id, staff_id, event_date, start_at, end_at, address, client_phone, title, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, finalClientId, packageId, staffId || null, eventDate, toMySQLDateTime(start), toMySQLDateTime(end), address || null, clientPhone || null, title || null, status || 'INQUIRY']
     );
     // Optional create time_blocks of type BOOKING per assigned staff via further endpoints
     await conn.commit();
@@ -255,7 +396,7 @@ app.post('/bookings', auth(['ADMIN','MANAGER']), async (req, res) => {
 app.get('/bookings/:id', auth(['ADMIN','MANAGER']), async (req, res) => {
   const { id } = req.params as any;
   const [rows] = await pool.query(
-    `SELECT b.id, b.client_id as clientId, b.package_id as packageId, b.event_date as eventDate,
+    `SELECT b.id, b.title, b.client_id as clientId, b.package_id as packageId, b.event_date as eventDate,
             b.start_at as start, b.end_at as end, b.address, b.status,
             b.subtotal, b.discount, b.total
      FROM bookings b WHERE b.id = ? LIMIT 1`,
@@ -269,7 +410,7 @@ app.get('/bookings/:id', auth(['ADMIN','MANAGER']), async (req, res) => {
 // Update booking
 app.put('/bookings/:id', auth(['ADMIN','MANAGER']), async (req, res) => {
   const { id } = req.params as any;
-  const { start, end, address, status, staffId, clientPhone } = req.body as any;
+  const { start, end, address, status, staffId, clientPhone, title } = req.body as any;
   const fields: string[] = [];
   const params: any[] = [];
   if (start) { fields.push('start_at = ?'); params.push(toMySQLDateTime(start)); }
@@ -278,6 +419,7 @@ app.put('/bookings/:id', auth(['ADMIN','MANAGER']), async (req, res) => {
   if (status) { fields.push('status = ?'); params.push(status); }
   if (staffId !== undefined) { fields.push('staff_id = ?'); params.push(staffId || null); }
   if (clientPhone !== undefined) { fields.push('client_phone = ?'); params.push(clientPhone || null); }
+  if (title !== undefined) { fields.push('title = ?'); params.push(title || null); }
   if (fields.length === 0) return res.json({ ok: true });
   params.push(id);
   await pool.query(`UPDATE bookings SET ${fields.join(', ')} WHERE id = ?`, params);

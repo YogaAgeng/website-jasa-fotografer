@@ -1,26 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PaymentAPI, BookingAPI } from '../../api/client';
-import type { BookingStatus } from '../../api/types';
+import type { BookingStatus, Booking, Payment } from '../../api/types';
 import Button from '../../components/ui/Button';
-import { CreditCard, Plus, Trash2, Calendar, User } from 'lucide-react';
-
-type Payment = {
-  id: string;
-  bookingId: string;
-  method: 'EWALLET'|'VA'|'CASH'|'BANK_TRANSFER';
-  amount: number;
-  paidAt: string;
-  clientName?: string;
-  bookingStart?: string;
-  bookingEnd?: string;
-};
+import PaymentInvoiceModal from '../../components/whatsapp/PaymentInvoiceModal';
+import { CreditCard, Plus, Trash2, Calendar, User, MessageCircle, FileText } from 'lucide-react';
 
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ bookingId: '', method: 'CASH' as Payment['method'], amount: '' });
-  const [bookings, setBookings] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [showInvoice, setShowInvoice] = useState(false);
 
   useEffect(() => {
     load();
@@ -59,6 +52,23 @@ export default function PaymentsPage() {
     await load();
   }
 
+  const handleShowInvoice = (payment: Payment) => {
+    const booking = bookings.find(b => b.id === payment.bookingId);
+    if (booking) {
+      setSelectedPayment(payment);
+      setSelectedBooking(booking);
+      setShowInvoice(true);
+    } else {
+      alert('Booking information not found');
+    }
+  };
+
+  const handleCloseInvoice = () => {
+    setShowInvoice(false);
+    setSelectedPayment(null);
+    setSelectedBooking(null);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-500">Loading payments...</div>
@@ -89,7 +99,7 @@ export default function PaymentsPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Method</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid At</th>
-                <th className="px-6 py-3"></th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -106,8 +116,33 @@ export default function PaymentsPage() {
                   <td className="px-6 py-3 text-sm">{p.method}</td>
                   <td className="px-6 py-3 font-semibold">Rp {p.amount?.toLocaleString('id-ID')}</td>
                   <td className="px-6 py-3 text-sm">{p.paidAt ? new Date(p.paidAt).toLocaleString() : '-'}</td>
-                  <td className="px-6 py-3 text-right">
-                    <Button size="sm" variant="danger" leftIcon={<Trash2 className="w-3 h-3"/>} onClick={() => deletePayment(p.id)}>Delete</Button>
+                  <td className="px-6 py-3">
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="secondary" 
+                        leftIcon={<FileText className="w-3 h-3" />}
+                        onClick={() => handleShowInvoice(p)}
+                      >
+                        Invoice
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="primary" 
+                        leftIcon={<MessageCircle className="w-3 h-3" />}
+                        onClick={() => handleShowInvoice(p)}
+                      >
+                        WhatsApp
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="danger" 
+                        leftIcon={<Trash2 className="w-3 h-3" />} 
+                        onClick={() => deletePayment(p.id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -172,6 +207,16 @@ export default function PaymentsPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Payment Invoice Modal */}
+      {selectedPayment && selectedBooking && (
+        <PaymentInvoiceModal
+          payment={selectedPayment}
+          booking={selectedBooking}
+          isOpen={showInvoice}
+          onClose={handleCloseInvoice}
+        />
       )}
     </div>
   );

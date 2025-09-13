@@ -11,7 +11,8 @@ import {
   HelpCircle,
   ChevronLeft,
   ChevronRight,
-  CreditCard
+  CreditCard,
+  MessageCircle
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -26,6 +27,7 @@ const menuItems = [
   { path: '/admin/clients', label: 'Clients', icon: UserCheck },
   { path: '/admin/packages', label: 'Packages', icon: Package },
   { path: '/admin/payments', label: 'Payments', icon: CreditCard },
+  { path: '/admin/whatsapp', label: 'WhatsApp', icon: MessageCircle },
   { path: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { path: '/admin/settings', label: 'Settings', icon: Settings },
   { path: '/admin/help', label: 'Help', icon: HelpCircle },

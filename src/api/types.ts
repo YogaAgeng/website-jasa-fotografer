@@ -1,4 +1,5 @@
 // src/api/types.ts
+
 export type StaffType = "PHOTOGRAPHER" | "EDITOR";
 
 export enum BookingStatus {
@@ -65,4 +66,15 @@ export type CreateBookingDto = {
   status: BookingStatus;
   addOnIds?: string[];
   notes?: string;
+};
+
+export type Payment = {
+  id: string;
+  bookingId: string;
+  method: 'EWALLET' | 'VA' | 'CASH' | 'BANK_TRANSFER';
+  amount: number;
+  paidAt: string;
+  clientName?: string;
+  bookingStart?: string;
+  bookingEnd?: string;
 };
