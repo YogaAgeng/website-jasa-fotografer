@@ -77,6 +77,18 @@ export const AssignmentsAPI = {
 export const StaffAPI = {
   async list() {
     return (await api.get('/staff')).data;
+  },
+  async create(payload: { staffType: 'PHOTOGRAPHER'|'EDITOR'; name: string; phone?: string; email?: string; homeBase?: string; active?: boolean }) {
+    return (await api.post('/staff', payload)).data;
+  },
+  async get(id: string) {
+    return (await api.get(`/staff/${id}`)).data;
+  },
+  async update(id: string, payload: { staffType?: 'PHOTOGRAPHER'|'EDITOR'; name?: string; phone?: string; email?: string; homeBase?: string; active?: boolean }) {
+    return (await api.put(`/staff/${id}`, payload)).data;
+  },
+  async remove(id: string) {
+    return (await api.delete(`/staff/${id}`)).data;
   }
 };
 
@@ -89,5 +101,27 @@ export const PaymentAPI = {
   },
   async remove(id: string) {
     return (await api.delete(`/payments/${id}`)).data;
+  }
+};
+
+// WhatsApp Session API
+export const WhatsAppSessionAPI = {
+  async list() {
+    return (await api.get('/api/session/list')).data;
+  },
+  async create(payload: { sessionId?: string; deviceType?: 'android' | 'ios' | 'web' }) {
+    return (await api.post('/api/session/create', payload)).data;
+  },
+  async getStatus(sessionId: string) {
+    return (await api.get(`/api/session/status?id=${sessionId}`)).data;
+  },
+  async getQR(sessionId: string) {
+    return (await api.get(`/api/session/qr?id=${sessionId}`)).data;
+  },
+  async sendMessage(sessionId: string, payload: { to: string | string[]; text: string }) {
+    return (await api.post(`/api/send-message/${sessionId}`, payload)).data;
+  },
+  async delete(sessionId: string) {
+    return (await api.delete(`/api/session/${sessionId}`)).data;
   }
 };

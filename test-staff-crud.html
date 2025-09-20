@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Staff CRUD</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Test Staff CRUD Operations</h1>
+    
+    <div class="test-section">
+        <h3>1. Test Login</h3>
+        <button onclick="testLogin()">Login</button>
+        <div id="login-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>2. Test Create Staff</h3>
+        <button onclick="testCreateStaff()">Create Staff</button>
+        <div id="create-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>3. Test List Staff</h3>
+        <button onclick="testListStaff()">List Staff</button>
+        <div id="list-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>4. Test Update Staff</h3>
+        <button onclick="testUpdateStaff()">Update Staff</button>
+        <div id="update-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>5. Test Delete Staff</h3>
+        <button onclick="testDeleteStaff()">Delete Staff</button>
+        <div id="delete-result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080';
+        let authToken = '';
+        let testStaffId = '';
+
+        async function testLogin() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: 'admin@example.com', password: 'password123' })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    authToken = data.accessToken;
+                    document.getElementById('login-result').innerHTML = 
+                        `<div class="success">✅ Login successful! Token: ${authToken.substring(0, 20)}...</div>`;
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                document.getElementById('login-result').innerHTML = 
+                    `<div class="error">❌ Login failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testCreateStaff() {
+            try {
+                const response = await fetch(`${API_BASE}/staff`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        staffType: 'PHOTOGRAPHER',
+                        name: 'Test Photographer',
+                        phone: '+6281234567890',
+                        email: 'test@photographer.com',
+                        homeBase: 'Jakarta',
+                        active: true
+                    })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    testStaffId = data.id;
+                    document.getElementById('create-result').innerHTML = 
+                        `<div class="success">✅ Staff created successfully! ID: ${testStaffId}</div>`;
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                document.getElementById('create-result').innerHTML = 
+                    `<div class="error">❌ Create failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testListStaff() {
+            try {
+                const response = await fetch(`${API_BASE}/staff`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    document.getElementById('list-result').innerHTML = 
+                        `<div class="success">✅ Staff list retrieved! Found ${data.length} staff members</div>
+                         <pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                document.getElementById('list-result').innerHTML = 
+                    `<div class="error">❌ List failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testUpdateStaff() {
+            if (!testStaffId) {
+                document.getElementById('update-result').innerHTML = 
+                    `<div class="error">❌ No staff ID available. Create staff first.</div>`;
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/staff/${testStaffId}`, {
+                    method: 'PUT',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        name: 'Updated Test Photographer',
+                        phone: '+6281234567891',
+                        email: 'updated@photographer.com'
+                    })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    document.getElementById('update-result').innerHTML = 
+                        `<div class="success">✅ Staff updated successfully!</div>`;
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                document.getElementById('update-result').innerHTML = 
+                    `<div class="error">❌ Update failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testDeleteStaff() {
+            if (!testStaffId) {
+                document.getElementById('delete-result').innerHTML = 
+                    `<div class="error">❌ No staff ID available. Create staff first.</div>`;
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/staff/${testStaffId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    document.getElementById('delete-result').innerHTML = 
+                        `<div class="success">✅ Staff deleted successfully!</div>`;
+                    testStaffId = '';
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                document.getElementById('delete-result').innerHTML = 
+                    `<div class="error">❌ Delete failed: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -197,6 +197,27 @@ app.get('/api/session/list', auth(['ADMIN','MANAGER']), async (_req, res) => {
   res.json(sessions);
 });
 
+// Delete session
+app.delete('/api/session/:sessionId', auth(['ADMIN','MANAGER']), async (req, res) => {
+  const { sessionId } = req.params;
+  
+  if (!waSessions.has(sessionId)) {
+    return res.status(404).json({ message: 'Session not found' });
+  }
+  
+  try {
+    const session = waSessions.get(sessionId);
+    if (session?.client) {
+      await session.client.destroy();
+    }
+    waSessions.delete(sessionId);
+    res.json({ message: 'Session deleted successfully' });
+  } catch (error) {
+    console.error('Failed to delete session:', error);
+    res.status(500).json({ message: 'Failed to delete session' });
+  }
+});
+
 // Send message (single or multiple)
 app.post('/api/send-message/:sessionId', auth(['ADMIN','MANAGER']), async (req, res) => {
   const { sessionId } = req.params;
@@ -270,8 +291,16 @@ app.post('/wa/send', auth(['ADMIN','MANAGER']), async (req, res) => {
 });
 
 app.get('/staff', auth(['ADMIN','MANAGER']), async (_req, res) => {
-  const [rows] = await pool.query('SELECT id, staff_type as staffType, name, active FROM staff WHERE active = 1');
+  const [rows] = await pool.query('SELECT id, staff_type as staffType, name, phone, email, home_base as homeBase, active FROM staff ORDER BY name ASC');
   res.json(rows);
+});
+
+app.get('/staff/:id', auth(['ADMIN','MANAGER']), async (req, res) => {
+  const { id } = req.params as any;
+  const [rows] = await pool.query('SELECT id, staff_type as staffType, name, phone, email, home_base as homeBase, active FROM staff WHERE id = ? LIMIT 1', [id]);
+  const data = (rows as any[])[0];
+  if (!data) return res.status(404).json({ message: 'Staff not found' });
+  res.json(data);
 });
 
 app.post('/staff', auth(['ADMIN','MANAGER']), async (req, res) => {

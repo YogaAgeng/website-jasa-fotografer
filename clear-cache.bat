@@ -1,0 +1,19 @@
+@echo off
+echo Clearing cache and restarting development server...
+
+echo Stopping any running processes...
+taskkill /f /im node.exe 2>nul
+
+echo Clearing node_modules...
+rmdir /s /q node_modules 2>nul
+
+echo Clearing package-lock.json...
+del package-lock.json 2>nul
+
+echo Reinstalling dependencies...
+npm install
+
+echo Starting development server...
+npm run dev
+
+pause
